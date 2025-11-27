@@ -13,6 +13,7 @@ public class TodoItemsControllerTests
 {
     private static ApplicationDbContext CreateContext()
     {
+        // Isolated in-memory database per test to keep state clean.
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
@@ -24,6 +25,7 @@ public class TodoItemsControllerTests
     {
         var controller = new TodoItemsController(context);
 
+        // Attach a fake authenticated user with the given userId.
         var httpContext = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(

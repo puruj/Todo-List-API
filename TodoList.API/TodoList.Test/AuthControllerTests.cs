@@ -14,6 +14,7 @@ public class AuthControllerTests
 {
     private static ApplicationDbContext CreateContext()
     {
+        // Isolated in-memory database per test to avoid cross-test pollution.
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
@@ -23,6 +24,7 @@ public class AuthControllerTests
 
     private static IConfiguration BuildConfig()
     {
+        // Minimal JWT settings so the controller can issue tokens in tests.
         var settings = new Dictionary<string, string?>
         {
             ["Jwt:Key"] = "super-secret-test-key-1234567890",
@@ -143,6 +145,7 @@ public class AuthControllerTests
         Assert.Equal(userId, response.User.Id);
         Assert.Equal("login@example.com", response.User.Email);
 
+        // Decode the JWT to assert claim contents, not just the shape.
         var token = new JwtSecurityTokenHandler().ReadJwtToken(response.Token);
         Assert.Equal(userId.ToString(), token.Claims.Single(c => c.Type == JwtRegisteredClaimNames.Sub).Value);
         Assert.Equal("login@example.com", token.Claims.Single(c => c.Type == JwtRegisteredClaimNames.Email).Value);
