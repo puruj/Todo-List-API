@@ -24,7 +24,7 @@ namespace TodoList.API.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register(RegisterRequest request)
+        public async Task<ActionResult<RegisterResponse>> Register(RegisterRequest request)
         {
             var exists = await _context.Users.AnyAsync(u => u.Email == request.Email);
             if (exists)
@@ -44,11 +44,17 @@ namespace TodoList.API.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            return Ok();
+            var response = new RegisterResponse
+            {
+                User = MapToUserDto(user),
+                CreatedAt = user.CreatedAt
+            };
+
+            return Ok(response);
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginRequest request)
+        public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
         {
             var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
@@ -57,14 +63,22 @@ namespace TodoList.API.Controllers
             if (!PasswordHelper.VerifyPasswordHash(request.Password, user.PasswordHash, user.PasswordSalt))
                 return Unauthorized("Invalid credentials.");
 
-            var token = GenerateJwtToken(user);
-            return Ok(new { token });
+            var response = GenerateJwtToken(user);
+            return Ok(response);
         }
 
-        private string GenerateJwtToken(User user)
+        private static AuthUserDto MapToUserDto(User user) => new()
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Email = user.Email
+        };
+
+        private AuthResponse GenerateJwtToken(User user)
         {
             var jwtSettings = _config.GetSection("Jwt");
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
+            var expires = DateTime.UtcNow.AddMinutes(double.Parse(jwtSettings["ExpiresMinutes"]!));
 
             var claims = new[]
             {
@@ -74,7 +88,6 @@ namespace TodoList.API.Controllers
             };
 
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var expires = DateTime.UtcNow.AddMinutes(double.Parse(jwtSettings["ExpiresMinutes"]!));
 
             var token = new JwtSecurityToken(
                 issuer: jwtSettings["Issuer"],
@@ -83,7 +96,14 @@ namespace TodoList.API.Controllers
                 expires: expires,
                 signingCredentials: creds);
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            var serializedToken = new JwtSecurityTokenHandler().WriteToken(token);
+
+            return new AuthResponse
+            {
+                Token = serializedToken,
+                ExpiresAt = expires,
+                User = MapToUserDto(user)
+            };
         }
     }
 }
